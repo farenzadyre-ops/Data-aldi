@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Bandingkan Nama Excel vs Google Sheets</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #aaa; padding: 8px; }
+    tr.match { background-color: #d4edda; }  /* hijau kalau ada di Excel */
+    tr.nomatch { background-color: #f8d7da; } /* merah kalau tidak ada di Excel */
+  </style>
+</head>
+<body>
+  <h2>Perbandingan Nama</h2>
+
+  <p><b>1.</b> Upload file Excel (pastikan kolom pertama = Nama):</p>
+  <input type="file" id="excelFile" accept=".xlsx">
+
+  <p><b>2.</b> Masukkan link CSV Google Sheets:</p>
+  <input type="text" id="sheetUrl" size="80" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv">
+  <button onclick="compareData()">Bandingkan</button>
+
+  <h3>Hasil Perbandingan:</h3>
+  <div id="result"></div>
+
+  <script>
+    let excelNames = new Set();
+
+    // Ambil nama dari Excel
+    document.getElementById("excelFile").addEventListener("change", e => {
+      let reader = new FileReader();
+      reader.onload = ev => {
+        let data = new Uint8Array(ev.target.result);
+        let wb = XLSX.read(data, { type: 'array' });
+        let ws = wb.Sheets[wb.SheetNames[0]];
+        let rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        rows.forEach(r => {
+          if (r[0]) excelNames.add(r[0].toString().trim()); // kolom pertama dianggap "Nama"
+        });
+      };
+      reader.readAsArrayBuffer(e.target.files[0]);
+    });
+
+    // Bandingkan dengan Google Sheets
+    async function compareData() {
+      let url = document.getElementById("sheetUrl").value;
+      let res = await fetch(url);
+      let text = await res.text();
+      let rows = text.trim().split("\n").map(r => r.split(","));
+
+      let table = "<table>";
+      rows.forEach((r, i) => {
+        if (i === 0) {
+          // header
+          table += "<tr>" + r.map(c => `<th>${c}</th>`).join("") + "</tr>";
+        } else {
+          let nama = r[0]?.trim(); // kolom pertama
+          let kelas = excelNames.has(nama) ? "match" : "nomatch";
+          table += `<tr class="${kelas}">` + r.map(c => `<td>${c}</td>`).join("") + "</tr>`;
+        }
+      });
+      table += "</table>";
+      document.getElementById("result").innerHTML = table;
+    }
+  </script>
+</body>
+</html>
