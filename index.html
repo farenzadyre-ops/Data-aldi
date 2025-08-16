@@ -2,25 +2,39 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Sheet Viewer</title>
+  <title>Sheet Viewer + OCR (Upload & Kamera)</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    input { padding: 8px; width: 100%; margin-bottom: 15px; }
-    table { border-collapse: collapse; width: 100%; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f6f9; }
+    h1 { color: #333; }
+    input[type="file"], input[type="text"], button { 
+      padding: 10px; margin: 10px 0; width: 100%; max-width: 400px; 
+    }
+    video, canvas { display: none; margin-top: 10px; width: 100%; max-width: 400px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; background: white; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     tr:nth-child(even) { background: #f9f9f9; }
+    #ocrResult { margin-top: 10px; color: #444; font-style: italic; }
   </style>
 </head>
 <body>
-  <h1>📊 Sheet Viewer</h1>
-  <input type="text" id="search" placeholder="Cari data...">
+  <h1>📊 Sheet Viewer + OCR</h1>
+
+  <input type="text" id="search" placeholder="🔎 Cari data...">
+  <br>
+  <input type="file" id="imageInput" accept="image/*">
+  <button id="cameraBtn">📷 Gunakan Kamera</button>
+  <video id="video" autoplay></video>
+  <canvas id="canvas"></canvas>
+  <button id="captureBtn" style="display:none;">📸 Ambil Foto & OCR</button>
+
+  <p id="ocrResult">Hasil OCR: <i>Belum ada</i></p>
 
   <table id="data-table"></table>
 
   <script>
-    const sheetId = "17WawIQvd6_Y52ILvn-6Z-RBSxDpfFtYldnKhmvn7yw8";
+    const sheetId = "17WawIQvd6_Y52ILvn-6Z-RBSxDpfFtYldnKhmvn7yw8"; // ID sheet kamu
     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
-
     let allData = [];
 
     // Ambil data dari Google Sheets
@@ -31,10 +45,6 @@
         const rows = json.table.rows.map(r => r.c.map(c => c ? c.v : ""));
         allData = rows;
         renderTable(allData);
-      })
-      .catch(err => {
-        document.getElementById("data-table").innerHTML = "<tr><td>Gagal mengambil data. Pastikan sheet sudah publik.</td></tr>";
-        console.error(err);
       });
 
     // Render tabel
@@ -52,14 +62,57 @@
       });
     }
 
-    // Filter pencarian
+    // Filter pencarian text
     document.getElementById("search").addEventListener("input", e => {
-      const q = e.target.value.toLowerCase();
+      filterTable(e.target.value);
+    });
+
+    function filterTable(query) {
+      const q = query.toLowerCase();
       const filtered = allData.filter(row =>
         row.some(cell => cell.toString().toLowerCase().includes(q))
       );
       renderTable(filtered);
+    }
+
+    // OCR dari upload gambar
+    document.getElementById("imageInput").addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const { data: { text } } = await Tesseract.recognize(file, 'eng');
+      updateSearchFromOCR(text);
     });
+
+    // Kamera
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const captureBtn = document.getElementById("captureBtn");
+
+    document.getElementById("cameraBtn").addEventListener("click", async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      video.style.display = "block";
+      captureBtn.style.display = "block";
+    });
+
+    captureBtn.addEventListener("click", async () => {
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.style.display = "block";
+
+      const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
+      updateSearchFromOCR(text);
+    });
+
+    // Fungsi update search dari OCR
+    function updateSearchFromOCR(text) {
+      document.getElementById("ocrResult").innerHTML = "Hasil OCR: " + text;
+      document.getElementById("search").value = text.trim();
+      filterTable(text.trim());
+    }
   </script>
 </body>
 </html>
